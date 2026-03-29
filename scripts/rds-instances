@@ -128,15 +128,9 @@ wait
 echo "----------------------------------------"
 echo "✅ All tunnels processed for profile: $PROFILE"
 
-# Detect WSL
-if grep -qi microsoft /proc/version 2>/dev/null; then
-  WSL_IP=$(hostname -I | awk '{print $1}')
-  echo "👉 Connect from Windows (DBeaver):"
-  echo "Host: $WSL_IP"
-else
-  echo "👉 Connect locally:"
-  echo "Host: 127.0.0.1"
-fi
+
+echo "👉 Connect from Windows (DBeaver) / Mac:"
+echo "Host: 127.0.0.1/localhost"
 
 echo "----------------------------------------"
 
