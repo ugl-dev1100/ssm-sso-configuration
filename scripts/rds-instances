@@ -140,5 +140,5 @@ lsof -iTCP -sTCP:LISTEN | grep session-manager-plugin || echo "None"
 
 echo ""
 echo "🔍 Verify:"
-echo "lsof -iTCP:<port> -sTCP:LISTEN"
-echo "nc -zv 127.0.0.1 <port>"
+echo "lsof -iTCP:<port> -sTCP:LISTEN - Check in WSL Linux Port forwarding is working or not" 
+echo "nc -zv 127.0.0.1 <port> - Works in both Mac/WSL Linux"
