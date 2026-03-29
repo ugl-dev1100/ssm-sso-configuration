@@ -2,16 +2,16 @@
 
 set -euo pipefail
 
-PROFILE="$1"
-MAP_FILE="$HOME/.rds-new-map"
+PROFILE="${1:-}"
+MAP_FILE="$HOME/.rds-map"
 
-[ -z "$PROFILE" ] && { echo "Usage: connect-rds <profile>"; exit 1; }
-[ ! -f "$MAP_FILE" ] && { echo "Mapping file not found"; exit 1; }
+[ -z "$PROFILE" ] && { echo "Usage: rds-instances <uat|prod>"; exit 1; }
+[ ! -f "$MAP_FILE" ] && { echo "❌ Mapping file not found (~/.rds-map)"; exit 1; }
 
 REGION=$(aws configure get region --profile "$PROFILE")
 REGION=${REGION:-us-east-1}
 
-# Ensure SSO
+# Ensure SSO login
 aws sts get-caller-identity --profile "$PROFILE" >/dev/null 2>&1 || \
 aws sso login --profile "$PROFILE"
 
@@ -33,91 +33,118 @@ echo "Starting DB tunnels ($PROFILE)..."
 CURRENT_ENV=""
 
 # -----------------------------
-# Functions
+# FUNCTIONS
 # -----------------------------
 
-# Check if tunnel is actually working
+# Universal port check (Mac + Linux + WSL)
 is_port_active() {
-  nc -z localhost "$1" >/dev/null 2>&1
+  lsof -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
 }
 
-# Kill broken/stale process on port
+# Kill stale process on port
 kill_port() {
-  lsof -ti :"$1" | xargs kill -9 2>/dev/null || true
+  local PORT=$1
+  PIDS=$(lsof -tiTCP:"$PORT" 2>/dev/null || true)
+
+  if [ -n "$PIDS" ]; then
+    echo "⚠️ Cleaning stale process on port $PORT"
+    echo "$PIDS" | xargs kill -9
+  fi
 }
 
+# Start SSM tunnel safely
 start_tunnel() {
   local DB=$1
   local PORT=$2
   local ENDPOINT=$3
 
-  echo "Starting: $DB → 127.0.0.1/localhost:$PORT"
+  echo "🚀 Starting: $DB → 127.0.0.1:$PORT"
 
-  # Start tunnel (single background only)
-  aws ssm start-session \
+  # Clean any stale process
+  kill_port "$PORT"
+
+  # Start tunnel using nohup (important)
+  nohup aws ssm start-session \
     --target "$JUMP" \
     --profile "$PROFILE" \
     --region "$REGION" \
     --document-name AWS-StartPortForwardingSessionToRemoteHost \
     --parameters "{\"host\":[\"$ENDPOINT\"],\"portNumber\":[\"3306\"],\"localPortNumber\":[\"$PORT\"]}" \
-    >/dev/null 2>&1 &
+    >"/tmp/ssm-$PORT.log" 2>&1 &
 
-  # Wait longer (SSM needs time)
+  # Wait until port is active
   for i in {1..10}; do
-    if nc -z localhost "$PORT" >/dev/null 2>&1; then
-      echo "✅ Tunnel ready: $DB"
-      return
+    if is_port_active "$PORT"; then
+      echo "✅ Tunnel ready: $DB ($PORT)"
+      return 0
     fi
     sleep 1
   done
 
-  echo "❌ Tunnel failed: $DB"
+  echo "❌ Tunnel failed: $DB ($PORT)"
+  echo "👉 Check log: /tmp/ssm-$PORT.log"
+  return 1
 }
 
 # -----------------------------
-# Process mapping
+# PROCESS MAP FILE
 # -----------------------------
 while IFS="=" read -r DB PORT; do
 
-  DB_CLEAN=$(echo "$DB" | tr -d '\r' | xargs)
-  PORT_CLEAN=$(echo "$PORT" | tr -d '\r' | xargs)
+  DB=$(echo "$DB" | tr -d '\r' | xargs)
+  PORT=$(echo "$PORT" | tr -d '\r' | xargs)
 
-  [[ -z "$DB_CLEAN" ]] && continue
+  [[ -z "$DB" ]] && continue
 
-  case "$DB_CLEAN" in
+  case "$DB" in
     "[uat_databases]") CURRENT_ENV="uat"; continue ;;
     "[prod_databases]") CURRENT_ENV="prod"; continue ;;
   esac
 
-  [[ "$DB_CLEAN" =~ ^# ]] && continue
+  [[ "$DB" =~ ^# ]] && continue
   [[ "$CURRENT_ENV" != "$PROFILE" ]] && continue
 
-  # Check if working tunnel exists
-  if is_port_active "$PORT_CLEAN"; then
-    echo "✅ $DB_CLEAN already active on $PORT_CLEAN"
+  if is_port_active "$PORT"; then
+    echo "✅ $DB already active on $PORT"
     continue
-  else
-    # Clean broken tunnel if any
-    kill_port "$PORT_CLEAN"
   fi
 
-  # Get RDS endpoint
   ENDPOINT=$(aws rds describe-db-instances \
     --profile "$PROFILE" \
     --region "$REGION" \
-    --db-instance-identifier "$DB_CLEAN" \
+    --db-instance-identifier "$DB" \
     --query "DBInstances[0].Endpoint.Address" \
     --output text)
 
-  # Start in parallel 🔥
-  start_tunnel "$DB_CLEAN" "$PORT_CLEAN" "$ENDPOINT" &
+  start_tunnel "$DB" "$PORT" "$ENDPOINT" &
 
 done < "$MAP_FILE"
 
-# Wait for all background jobs
 wait
 
+# -----------------------------
+# OUTPUT
+# -----------------------------
 echo "----------------------------------------"
-echo "✅ All tunnels processed"
-echo "Host: 127.0.0.1/localhost"
+echo "✅ All tunnels processed for profile: $PROFILE"
+
+# Detect WSL
+if grep -qi microsoft /proc/version 2>/dev/null; then
+  WSL_IP=$(hostname -I | awk '{print $1}')
+  echo "👉 Connect from Windows (DBeaver):"
+  echo "Host: $WSL_IP"
+else
+  echo "👉 Connect locally:"
+  echo "Host: 127.0.0.1"
+fi
+
 echo "----------------------------------------"
+
+# Show active tunnels
+echo "Active tunnels:"
+lsof -iTCP -sTCP:LISTEN | grep session-manager-plugin || echo "None"
+
+echo ""
+echo "🔍 Verify:"
+echo "lsof -iTCP:<port> -sTCP:LISTEN"
+echo "nc -zv 127.0.0.1 <port>"
