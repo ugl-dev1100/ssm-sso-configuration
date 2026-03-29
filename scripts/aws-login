@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+
+PROFILE="$1"
+
+if [ -z "$PROFILE" ]; then
+  echo "Usage: aws-login <profile>"
+  exit 1
+fi
+
+echo "Checking SSO for $PROFILE..."
+
+aws sts get-caller-identity --profile "$PROFILE" >/dev/null 2>&1 || {
+  echo "🔐 Logging in..."
+  aws sso login --profile "$PROFILE"
+}
+
+echo "✅ Ready: $PROFILE"%

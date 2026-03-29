@@ -1,0 +1,123 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROFILE="$1"
+MAP_FILE="$HOME/.rds-new-map"
+
+[ -z "$PROFILE" ] && { echo "Usage: connect-rds <profile>"; exit 1; }
+[ ! -f "$MAP_FILE" ] && { echo "Mapping file not found"; exit 1; }
+
+REGION=$(aws configure get region --profile "$PROFILE")
+REGION=${REGION:-us-east-1}
+
+# Ensure SSO
+aws sts get-caller-identity --profile "$PROFILE" >/dev/null 2>&1 || \
+aws sso login --profile "$PROFILE"
+
+# -----------------------------
+# Find Jumphost
+# -----------------------------
+JUMP=$(aws ec2 describe-instances \
+  --profile "$PROFILE" \
+  --region "$REGION" \
+  --filters "Name=instance-state-name,Values=running" \
+  --query "Reservations[].Instances[?contains(Tags[?Key=='Name'].Value | [0], 'Jumphost')].InstanceId" \
+  --output text | head -n 1)
+
+[ -z "$JUMP" ] && { echo "❌ No Jumphost found"; exit 1; }
+
+echo "Using Jumphost: $JUMP"
+echo "Starting DB tunnels ($PROFILE)..."
+
+CURRENT_ENV=""
+
+# -----------------------------
+# Functions
+# -----------------------------
+
+# Check if tunnel is actually working
+is_port_active() {
+  nc -z localhost "$1" >/dev/null 2>&1
+}
+
+# Kill broken/stale process on port
+kill_port() {
+  lsof -ti :"$1" | xargs kill -9 2>/dev/null || true
+}
+
+start_tunnel() {
+  local DB=$1
+  local PORT=$2
+  local ENDPOINT=$3
+
+  echo "Starting: $DB → 127.0.0.1/localhost:$PORT"
+
+  # Start tunnel (single background only)
+  aws ssm start-session \
+    --target "$JUMP" \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --document-name AWS-StartPortForwardingSessionToRemoteHost \
+    --parameters "{\"host\":[\"$ENDPOINT\"],\"portNumber\":[\"3306\"],\"localPortNumber\":[\"$PORT\"]}" \
+    >/dev/null 2>&1 &
+
+  # Wait longer (SSM needs time)
+  for i in {1..10}; do
+    if nc -z localhost "$PORT" >/dev/null 2>&1; then
+      echo "✅ Tunnel ready: $DB"
+      return
+    fi
+    sleep 1
+  done
+
+  echo "❌ Tunnel failed: $DB"
+}
+
+# -----------------------------
+# Process mapping
+# -----------------------------
+while IFS="=" read -r DB PORT; do
+
+  DB_CLEAN=$(echo "$DB" | tr -d '\r' | xargs)
+  PORT_CLEAN=$(echo "$PORT" | tr -d '\r' | xargs)
+
+  [[ -z "$DB_CLEAN" ]] && continue
+
+  case "$DB_CLEAN" in
+    "[uat_databases]") CURRENT_ENV="uat"; continue ;;
+    "[prod_databases]") CURRENT_ENV="prod"; continue ;;
+  esac
+
+  [[ "$DB_CLEAN" =~ ^# ]] && continue
+  [[ "$CURRENT_ENV" != "$PROFILE" ]] && continue
+
+  # Check if working tunnel exists
+  if is_port_active "$PORT_CLEAN"; then
+    echo "✅ $DB_CLEAN already active on $PORT_CLEAN"
+    continue
+  else
+    # Clean broken tunnel if any
+    kill_port "$PORT_CLEAN"
+  fi
+
+  # Get RDS endpoint
+  ENDPOINT=$(aws rds describe-db-instances \
+    --profile "$PROFILE" \
+    --region "$REGION" \
+    --db-instance-identifier "$DB_CLEAN" \
+    --query "DBInstances[0].Endpoint.Address" \
+    --output text)
+
+  # Start in parallel 🔥
+  start_tunnel "$DB_CLEAN" "$PORT_CLEAN" "$ENDPOINT" &
+
+done < "$MAP_FILE"
+
+# Wait for all background jobs
+wait
+
+echo "----------------------------------------"
+echo "✅ All tunnels processed"
+echo "Host: 127.0.0.1/localhost"
+echo "----------------------------------------"

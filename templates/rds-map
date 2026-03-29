@@ -1,0 +1,16 @@
+[uat_databases]
+uat-aud1-encrypted=3307                                                                                                                                                           
+uat-chr=3308                                                                                                                                                                      
+uat-ffs=3309 
+
+[prod_databases]
+audinteldb=3411
+auspigroup=3412
+chrobinsondb=3413
+ffsdb=3414
+fopdb=3415
+fopwls=3416
+idrivedb=3417
+redwood=3418
+shipbob=3419
+shiphawk=3420
