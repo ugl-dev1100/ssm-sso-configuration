@@ -5,7 +5,7 @@ set -euo pipefail
 PROFILE="${1:?Usage: instances <uat|prod>}"
 
 # ── Region ────────────────────────────────────────────────
-REGION=$(aws configure get region --profile "$PROFILE" 2>/dev/null || echo "ap-south-1")
+REGION=$(aws configure get region --profile "$PROFILE" 2>/dev/null || echo "us-east-1")
 
 # ── SSO login if needed ───────────────────────────────────
 aws sts get-caller-identity --profile "$PROFILE" &>/dev/null \

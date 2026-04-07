@@ -127,18 +127,22 @@ install_script() {
 }
 
 install_script "scripts/aws-login"
-install_script "scripts/rds-instances"
-install_script "scripts/instances"
+install_script "scripts/db-pc"
+install_script "scripts/find-win"
+install_script "scripts/linux"
+install_script "scripts/rds"
+install_script "scripts/win"
+install_script "scripts/win-pc"
 
 # ----------------------------
 # Setup rds-map
 # ----------------------------
-if [ ! -f "$HOME/.rds-map" ]; then
-  log "📝 Creating ~/.rds-map..."
-  run_cmd "cp templates/rds-map $HOME/.rds-map"
-else
-  log "✅ ~/.rds-map already exists"
-fi
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+log "📝 Updating ~/.rds-map..."
+run_cmd "cp $SCRIPT_DIR/templates/rds-map $HOME/.rds-map"
+log "📝 Updating ~/.win-map..."
+run_cmd "cp $SCRIPT_DIR/templates/win-map $HOME/.win-map"
 
 # ----------------------------
 # Detect shell
@@ -168,10 +172,14 @@ append_if_not_exists() {
 }
 
 # Aliases
-append_if_not_exists 'alias uat="instances uat"' "$SHELL_FILE"
-append_if_not_exists 'alias prod="instances prod"' "$SHELL_FILE"
-append_if_not_exists 'alias dbuat="rds-instances uat"' "$SHELL_FILE"
-append_if_not_exists 'alias dbprod="rds-instances prod"' "$SHELL_FILE"
+
+append_if_not_exists 'alias uat="linux uat"' "$SHELL_FILE"
+append_if_not_exists 'alias prod="linux prod"' "$SHELL_FILE"
+append_if_not_exists 'alias dbuat="rds uat"' "$SHELL_FILE"
+append_if_not_exists 'alias dbprod="rds prod"' "$SHELL_FILE"
+append_if_not_exists 'alias wuat="win uat"' "$SHELL_FILE"
+append_if_not_exists 'alias wprod="win prod"' "$SHELL_FILE"
+
 
 # PATH FIX (IMPORTANT)
 if [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
@@ -188,8 +196,11 @@ log "👉 Reload shell:"
 log "   source $SHELL_FILE"
 log ""
 log "👉 Usage:"
-log "   uat - for connecting uat servers"
-log "   prod - for connecting prod servers"
+log "   uat - for connecting linux uat servers"
+log "   prod - for connecting linux prod servers"
+log "   wuat - for connecting windows uat servers"
+log "   wprod - for connecting windows prod servers"
 log "   dbuat - open tunnels for uat dbs"
 log "   dbprod - open tunnels for prod dbs"
+log "   db-pc - Checking ports actively listening or not"
 log ""

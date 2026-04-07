@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROFILE="${1:-}"
+
+[ -z "$PROFILE" ] && { echo "Usage: win <uat|prod>"; exit 1; }
+
+echo "🔍 Fetching ONLY Windows servers in $PROFILE..."
+
+aws ec2 describe-instances \
+  --profile "$PROFILE" \
+  --region us-east-1 \
+  --query "Reservations[].Instances[?contains(PlatformDetails, 'Windows')].[InstanceId, PlatformDetails, Tags[?Key=='Name']|[0].Value, State.Name]" \
+  --output text | tr '\t' '|' | while IFS='|' read -r ID PLATFORM NAME STATE; do
+
+  NAME=${NAME:-No-Name}
+  STATE=${STATE:-unknown}
+
+  printf "%-20s %-30s %-50s %-10s\n" "$ID" "$PLATFORM" "$NAME" "$STATE"
+
+done

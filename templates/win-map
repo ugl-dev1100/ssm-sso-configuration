@@ -1,0 +1,24 @@
+[uat_windows_servers]
+i-063351c1cabb46db5    5001             UAT_Windows_Server_QA's - Sanity Servers  
+i-0f64e12a8ce5d15dd    5002             create_download_checkClaim-TI   
+i-0b3ff8a9775a54e3f    5003             create_download_checkClaim-SHIPBOB 
+i-03c58189159b1bbf8    5004             create_download_checkClaim-CHR
+i-09a8f7f230dac2966    5005             create_download_checkClaim-FOP3New
+i-01cc2a96b4cfdb955    5006             create_download_checkClaim-REDWOODNew 
+i-0abbe11a67d9693f6    5007             CheckClaim 2 
+i-053d1b6deae53078e    5008             CheckClaim 1
+i-05194668f01d69b50    5009             CheckClaim 3
+i-0137682683fb2857d    5010             CheckClaim 8  
+i-00653b8cc8efeaf35    5011             CheckClaim 10 
+i-02d1317476207924d    5012             create_download_checkClaim-FOP1New
+i-0e3881a264419030b    5013             UPS automation-redwood-2  
+i-0f1faa045bdca0c90    5014             create_download_checkClaim-Audintel  
+i-08b3cc12cac563154    5015             Shiphawk_Fdx 
+i-05dc84a37a00f8798    5016             UPS automation-Redwood-1 
+i-036cf20224b1bbeb2    5017             create_download_checkClaim-iDrive3  
+i-0ca273324347a341c    5018             dev-env-sso
+
+[prod_windows_servers]
+i-0adcc456c7481cbe1    6001             Dev_system_new                                       
+i-051769c4b46df1328    6002             Captcha-Regular-updated                              
+i-0b03f0aa7870323f1    6003             Captcha-Regular-updated-new                        

@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+PROFILE="${1:-}"
+FILE="$HOME/.win-map"
+
+# ── SSO login if needed ───────────────────────────────────
+aws sts get-caller-identity --profile "$PROFILE" &>/dev/null \
+  || aws sso login --profile "$PROFILE"
+ 
+
+[ -z "$PROFILE" ] && { echo "Usage: rdp-connect <uat|prod>"; exit 1; }
+[ ! -f "$FILE" ] && { echo "❌ Config file not found"; exit 1; }
+
+# Map profile to section
+if [[ "$PROFILE" == "uat" ]]; then
+  SECTION="uat_windows_servers"
+elif [[ "$PROFILE" == "prod" ]]; then
+  SECTION="prod_windows_servers"
+else
+  echo "❌ Invalid profile"
+  exit 1
+fi
+
+echo "🚀 Starting RDP tunnels for $PROFILE..."
+
+awk "/\[$SECTION\]/ {flag=1; next} /^\[/ {flag=0} flag" "$FILE" | while read -r ID PORT NAME; do
+  [ -z "$ID" ] && continue
+
+  echo "🔌 $NAME → localhost:$PORT"
+
+  aws ssm start-session \
+    --target "$ID" \
+    --document-name AWS-StartPortForwardingSession \
+    --parameters "{\"portNumber\":[\"3389\"],\"localPortNumber\":[\"$PORT\"]}" \
+    > /dev/null 2>&1 &
+
+  sleep 1
+done
+
+echo ""
+echo "✅ All tunnels started!"
+echo "👉 Use your saved RDP connections 🚀"

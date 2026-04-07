@@ -36,60 +36,52 @@ CURRENT_ENV=""
 # FUNCTIONS
 # -----------------------------
 
-# Universal port check (Mac + Linux + WSL)
 is_port_active() {
-  lsof -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
+  nc -z 127.0.0.1 "$1" >/dev/null 2>&1
 }
 
-# Kill stale process on port
 kill_port() {
-  local PORT=$1
-  PIDS=$(lsof -tiTCP:"$PORT" 2>/dev/null || true)
-
-  if [ -n "$PIDS" ]; then
-    echo "⚠️ Cleaning stale process on port $PORT"
-    echo "$PIDS" | xargs kill -9
-  fi
+  lsof -tiTCP:"$1" 2>/dev/null | xargs kill -9 2>/dev/null || true
 }
 
-# Start SSM tunnel safely
 start_tunnel() {
   local DB=$1
   local PORT=$2
   local ENDPOINT=$3
 
+  if is_port_active "$PORT"; then
+    echo "✅ $DB already active on $PORT"
+    return
+  fi
+
   echo "🚀 Starting: $DB → 127.0.0.1:$PORT"
 
-  # Clean any stale process
   kill_port "$PORT"
 
-  # Start tunnel using nohup (important)
-  nohup aws ssm start-session \
+  aws ssm start-session \
     --target "$JUMP" \
     --profile "$PROFILE" \
     --region "$REGION" \
     --document-name AWS-StartPortForwardingSessionToRemoteHost \
     --parameters "{\"host\":[\"$ENDPOINT\"],\"portNumber\":[\"3306\"],\"localPortNumber\":[\"$PORT\"]}" \
-    >"/tmp/ssm-$PORT.log" 2>&1 &
+    > /tmp/ssm-$PORT.log 2>&1 &
 
-  # Wait until port is active
-  for i in {1..10}; do
+  # Wait properly (IMPORTANT FIX)
+  for i in {1..15}; do
     if is_port_active "$PORT"; then
       echo "✅ Tunnel ready: $DB ($PORT)"
-      return 0
+      return
     fi
     sleep 1
   done
 
-  echo "❌ Tunnel failed: $DB ($PORT)"
-  echo "👉 Check log: /tmp/ssm-$PORT.log"
-  return 1
+  echo "⚠️ Tunnel started (may take few seconds): $DB ($PORT)"
 }
 
 # -----------------------------
 # PROCESS MAP FILE
 # -----------------------------
-while IFS="=" read -r DB PORT; do
+while IFS="=" read -r DB PORT || [ -n "$DB" ]; do
 
   DB=$(echo "$DB" | tr -d '\r' | xargs)
   PORT=$(echo "$PORT" | tr -d '\r' | xargs)
@@ -104,11 +96,6 @@ while IFS="=" read -r DB PORT; do
   [[ "$DB" =~ ^# ]] && continue
   [[ "$CURRENT_ENV" != "$PROFILE" ]] && continue
 
-  if is_port_active "$PORT"; then
-    echo "✅ $DB already active on $PORT"
-    continue
-  fi
-
   ENDPOINT=$(aws rds describe-db-instances \
     --profile "$PROFILE" \
     --region "$REGION" \
@@ -116,29 +103,28 @@ while IFS="=" read -r DB PORT; do
     --query "DBInstances[0].Endpoint.Address" \
     --output text)
 
-  start_tunnel "$DB" "$PORT" "$ENDPOINT" &
+  start_tunnel "$DB" "$PORT" "$ENDPOINT"
 
 done < "$MAP_FILE"
-
-wait
 
 # -----------------------------
 # OUTPUT
 # -----------------------------
 echo "----------------------------------------"
 echo "✅ All tunnels processed for profile: $PROFILE"
-
-
-echo "👉 Connect from Windows (DBeaver) / Mac:"
-echo "Host: 127.0.0.1/localhost"
-
+echo "👉 Connect using:"
+echo "Host: 127.0.0.1"
 echo "----------------------------------------"
 
-# Show active tunnels
 echo "Active tunnels:"
-lsof -iTCP -sTCP:LISTEN | grep session-manager-plugin || echo "None"
+while IFS="=" read -r DB PORT; do
+  PORT=$(echo "$PORT" | xargs)
+
+  if is_port_active "$PORT"; then
+    echo "✅ Port $PORT ACTIVE"
+  fi
+done < "$MAP_FILE"
 
 echo ""
 echo "🔍 Verify:"
-echo "lsof -iTCP:<port> -sTCP:LISTEN - Check in WSL Linux Port forwarding is working or not" 
-echo "nc -zv 127.0.0.1 <port> - Works in both Mac/WSL Linux"
+echo "nc -zv localhost <port>"
