@@ -57,7 +57,7 @@ log "🔍 Running pre-flight checks..."
 
 command -v curl >/dev/null 2>&1 || log "⚠️ curl not found"
 command -v jq >/dev/null 2>&1 || log "⚠️ jq not found"
-command -v aws >/dev/null 2>&1 || log "⚠️ aws cli not found"
+command -v aws >/dev/null 2>&1 || log "⚠️ aws cli not found" 
 
 # ----------------------------
 # Install dependencies
@@ -84,7 +84,7 @@ install_linux() {
   log "🐧 Installing dependencies (Linux/WSL)..."
 
   run_cmd "$SUDO apt update -y"
-  run_cmd "$SUDO apt install -y unzip curl jq"
+  run_cmd "$SUDO apt install -y unzip curl jq wslu"
 
   if ! command -v aws >/dev/null 2>&1; then
     log "⬇️ Installing AWS CLI..."
@@ -128,11 +128,11 @@ install_script() {
 
 install_script "scripts/aws-login"
 install_script "scripts/db-pc"
-install_script "scripts/find-win"
+#install_script "scripts/find-win"
 install_script "scripts/linux"
 install_script "scripts/rds"
-install_script "scripts/win"
-install_script "scripts/win-pc"
+#install_script "scripts/win"
+#install_script "scripts/win-pc"
 
 # ----------------------------
 # Setup rds-map
@@ -160,32 +160,59 @@ log "⚙️ Updating $SHELL_FILE"
 # Backup
 cp "$SHELL_FILE" "$SHELL_FILE.bak.$(date +%s)"
 
-append_if_not_exists() {
-  LINE=$1
-  FILE=$2
 
-  if grep -Fxq "$LINE" "$FILE" 2>/dev/null; then
-    echo "ℹ️ Already exists: $LINE"
-  else
-    echo "$LINE" >> "$FILE"
-  fi
+append_block() {
+  NAME="$1"
+  FILE="$2"
+  CONTENT="$3"
+
+  # Remove old block if exists
+  sed -i.bak "/# >>> $NAME >>>/,/# <<< $NAME <<</d" "$FILE"
+
+  # Add fresh block
+  {
+    echo ""
+    echo "# >>> $NAME >>>"
+    echo "$CONTENT"
+    echo "# <<< $NAME <<<"
+  } >> "$FILE"
 }
 
 # Aliases
 
-append_if_not_exists 'alias uat="linux uat"' "$SHELL_FILE"
-append_if_not_exists 'alias prod="linux prod"' "$SHELL_FILE"
-append_if_not_exists 'alias dbuat="rds uat"' "$SHELL_FILE"
-append_if_not_exists 'alias dbprod="rds prod"' "$SHELL_FILE"
-append_if_not_exists 'alias wuat="win uat"' "$SHELL_FILE"
-append_if_not_exists 'alias wprod="win prod"' "$SHELL_FILE"
+append_block "ALIASES" "$SHELL_FILE" '
+alias uat="linux uat"
+alias prod="linux prod"
+alias dbuat="rds uat"
+alias dbprod="rds prod"
+alias wuat="win uat"
+alias wprod="win prod"
+'
 
+# auto-login
+# append_block "AWS_AUTO_LOGIN" "$SHELL_FILE" '
+# pgrep -f "aws-login uat" >/dev/null || aws-login uat >/dev/null 2>&1
+# pgrep -f "aws-login prod" >/dev/null || aws-login prod >/dev/null 2>&1
+# '
+
+append_block "AWS_AUTO_LOGIN" "$SHELL_FILE" '
+aws_auto_login() {
+  aws sts get-caller-identity --profile uat >/dev/null 2>&1 || aws-login uat
+  aws sts get-caller-identity --profile prod >/dev/null 2>&1 || aws-login prod
+}
+'
+
+# WSL specific config
+if [[ "$OS" == "wsl" ]]; then
+  append_block "WSL_CONFIG" "$SHELL_FILE" '
+export BROWSER=wslview
+'
+fi
 
 # PATH FIX (IMPORTANT)
 if [[ ":$PATH:" != *":/usr/local/bin:"* ]]; then
   append_if_not_exists 'export PATH="/usr/local/bin:$PATH"' "$SHELL_FILE"
 fi
-
 # ----------------------------
 # Done
 # ----------------------------

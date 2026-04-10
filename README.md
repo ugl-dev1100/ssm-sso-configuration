@@ -1,6 +1,6 @@
 # Monitoring DB connections
 ```bash
-#!/usr/bin/env bash
+  #!/usr/bin/env bash
 
 CMD="${1:-}"
 
@@ -8,24 +8,49 @@ THRESHOLD=20
 PORT=3306
 
 # -----------------------------
-# Build IP → DB name map
+# Build IP → DB name map (optional file-based)
 # -----------------------------
 declare -A DBMAP
 
-while read -r name endpoint; do
-  ip=$(getent hosts "$endpoint" | awk '{print $1}' | head -n1)
-  if [[ -n "$ip" ]]; then
+build_db_map() {
+  MAP_FILE="$HOME/.rds-map"
+
+  [[ ! -f "$MAP_FILE" ]] && return
+
+  while read -r ip name; do
+    [[ -z "$ip" || -z "$name" ]] && continue
     DBMAP["$ip"]="$name"
-  fi
-done < <(aws rds describe-db-instances \
-  --query "DBInstances[*].[DBInstanceIdentifier,Endpoint.Address]" \
-  --output text 2>/dev/null)
+  done < "$MAP_FILE"
+}
 
 # -----------------------------
-# Collect connections
+# Resolve DB name
+# -----------------------------
+resolve_name() {
+  local ip="$1"
+
+  [[ -z "$ip" ]] && echo "UNKNOWN" && return
+
+  local name="${DBMAP[$ip]}"
+
+  if [[ -z "$name" ]]; then
+    reverse=$(getent hosts "$ip" | awk '{print $2}')
+    name=${reverse:-UNKNOWN}
+  fi
+
+  echo "$name"
+}
+
+# -----------------------------
+# Collect ONLY real connections
 # -----------------------------
 get_connections() {
-  ss -tn | grep "$PORT" | awk '{print $5}' | cut -d: -f1
+  ss -tn \
+    | awk -v port=":$PORT" '
+      $1 == "ESTAB" && $5 ~ port {
+        split($5, a, ":")
+        print a[1]
+      }'
 }
 
 # -----------------------------
@@ -35,13 +60,15 @@ db_top() {
   echo "🔍 DB TOP (Live View)"
   echo "----------------------------------------"
 
-  TOTAL=$(get_connections | wc -l)
+  connections=$(get_connections)
+
+  TOTAL=$(echo "$connections" | grep -c .)
+
   echo "Total Connections: $TOTAL"
   echo ""
 
-  get_connections | sort | uniq -c | sort -nr | while read count ip; do
-    name="${DBMAP[$ip]}"
-    name=${name:-UNKNOWN}
+  echo "$connections" | grep . | sort | uniq -c | sort -nr | while read -r count ip; do
+    name=$(resolve_name "$ip")
 
     if (( count > THRESHOLD )); then
       echo "🚨 $count → $name ($ip)"
@@ -57,7 +84,9 @@ db_top() {
 # db stats (summary)
 # -----------------------------
 db_stats() {
-  TOTAL=$(get_connections | wc -l)
+  connections=$(get_connections)
+
+  TOTAL=$(echo "$connections" | grep -c .)
 
   echo "📊 DB STATS"
   echo "----------------------------------------"
@@ -65,9 +94,9 @@ db_stats() {
   echo ""
 
   echo "Top 3 DBs:"
-  get_connections | sort | uniq -c | sort -nr | head -n 3 | while read count ip; do
-    name="${DBMAP[$ip]}"
-    echo "$count → ${name:-UNKNOWN} ($ip)"
+  echo "$connections" | grep . | sort | uniq -c | sort -nr | head -n 3 | while read -r count ip; do
+    name=$(resolve_name "$ip")
+    echo "$count → $name ($ip)"
   done
 
   echo "----------------------------------------"
@@ -82,15 +111,16 @@ db_alert() {
 
   ALERT_FOUND=0
 
-  get_connections | sort | uniq -c | sort -nr | while read count ip; do
-    name="${DBMAP[$ip]}"
-    name=${name:-UNKNOWN}
+  while read -r count ip; do
+    [[ -z "$ip" ]] && continue
+
+    name=$(resolve_name "$ip")
 
     if (( count > THRESHOLD )); then
       echo "🚨 ALERT: $name ($ip) → $count connections"
       ALERT_FOUND=1
     fi
-  done
+  done < <(get_connections | grep . | sort | uniq -c | sort -nr)
 
   if [[ $ALERT_FOUND -eq 0 ]]; then
     echo "✅ All DB connections are within safe limits"
@@ -98,6 +128,11 @@ db_alert() {
 
   echo "----------------------------------------"
 }
+
+# -----------------------------
+# Init
+# -----------------------------
+build_db_map
 
 # -----------------------------
 # Command handler
@@ -116,9 +151,9 @@ case "$CMD" in
     echo "Usage: db {top|stats|alert}"
     ;;
 esac
-```
-1. chmod +x db
-2. sudo mv db /usr/loca/bin/
-3. db top
-4. db stats
-5. db alert
+  ```
+  1. chmod +x db
+  2. sudo mv db /usr/loca/bin/
+  3. db top
+  4. db stats
+  5. db alert
