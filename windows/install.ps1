@@ -34,8 +34,18 @@ if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
 # ----------------------------
 if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
     Write-Host "Installing AWS CLI..."
-    Invoke-WebRequest "https://awscli.amazonaws.com/AWSCLIV2.msi" -OutFile "$env:TEMP\aws.msi"
-    Start-Process msiexec.exe -Wait -ArgumentList "/i $env:TEMP\aws.msi /quiet"
+
+    $msi = "$env:TEMP\aws.msi"
+    Invoke-WebRequest "https://awscli.amazonaws.com/AWSCLIV2.msi" -OutFile $msi
+
+    # Silent install but safe
+    Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msi`" /qn"
+
+    # Verify install
+    if (-not (Get-Command aws -ErrorAction SilentlyContinue)) {
+        Write-Host "AWS install failed. Retrying with UI..."
+        Start-Process msiexec.exe -Wait -ArgumentList "/i `"$msi`""
+    }
 }
 
 # ----------------------------
