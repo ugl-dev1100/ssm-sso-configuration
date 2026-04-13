@@ -105,7 +105,7 @@ function dbpc { db-pc }
 # Remove old block (idempotent)
 if (Test-Path $profilePath) {
     $content = Get-Content $profilePath -Raw
-    $content = $content -replace "(?s)# >>> SSM_SETUP >>>.*# <<< SSM_SETUP <<<", ""
+    $content = $content -replace '# >>> SSM_SETUP >>>[\s\S]*?# <<< SSM_SETUP <<<', ''
     $content | Set-Content $profilePath
 }
 
