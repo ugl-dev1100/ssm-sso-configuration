@@ -36,7 +36,7 @@ $instances = @()
 foreach ($res in $data.Reservations) {
     foreach ($inst in $res.Instances) {
 
-        # Skip Windows instances
+        # Skip Windows
         if ($inst.Platform -eq "windows") {
             continue
         }
@@ -134,29 +134,20 @@ $OS_RESULT = ssm_run '". /etc/os-release; echo $ID"'
 
 if ($OS_RESULT -match "ubuntu") {
     $TARGET_USER = "ubuntu"
-    $IS_UBUNTU = $true
 } else {
     $TARGET_USER = "ec2-user"
-    $IS_UBUNTU = $false
 }
 
 # ----------------------------
-# COLORS
+# PROMPT COLOR (UAT / PROD)
 # ----------------------------
 if ($PROFILE -eq "prod") {
-    $ENV_COLOR  = "1;31"
-    $HOST_COLOR = "1;33"
-    $TAB_EMOJI  = "PROD"
+    # RED
+    $RC_CONTENT = "export PS1='\[\e[0;31m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\e[0m\]'"
 } else {
-    $ENV_COLOR  = "1;32"
-    $HOST_COLOR = "1;36"
-    $TAB_EMOJI  = "UAT"
+    # GREEN
+    $RC_CONTENT = "export PS1='\[\e[0;32m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\e[0m\]'"
 }
-
-# ----------------------------
-# BUILD PROMPT
-# ----------------------------
-$RC_CONTENT = "export PS1=`"`[\e]0;$TAB_EMOJI [$PROFILE] $INSTANCE_NAME\a`][\e[$ENV_COLOR" + "m][$PROFILE][$INSTANCE_NAME][\e[0m] [\e[$HOST_COLOR" + "m][\u@\h \W]\\$ [\e[0m]`""
 
 $bytes = [System.Text.Encoding]::UTF8.GetBytes($RC_CONTENT)
 $B64   = [Convert]::ToBase64String($bytes)
@@ -166,35 +157,25 @@ $B64   = [Convert]::ToBase64String($bytes)
 # ----------------------------
 Write-Host "Configuring prompt..."
 
-if ($IS_UBUNTU) {
-
 $FIX_SCRIPT = @"
 #!/bin/bash
 
 sed -i "/^export PS1/d" /etc/bash.bashrc
-sed -i "/SSM_PROMPT_INJECTED/d" /etc/bash.bashrc
-
-sed -i "/SSM_PROMPT_INJECTED/d" /home/ubuntu/.bashrc
-sed -i "/^export PS1/d" /home/ubuntu/.bashrc
+sed -i "/^export PS1/d" /home/$TARGET_USER/.bashrc
 
 echo $B64 | base64 -d > /etc/profile.d/ssm_prompt.sh
 chmod +x /etc/profile.d/ssm_prompt.sh
 
-for f in /home/ubuntu/.bashrc /root/.bashrc; do
-  echo "# SSM_PROMPT_INJECTED" >> \$f
+for f in /home/$TARGET_USER/.bashrc /root/.bashrc; do
+  echo "" >> \$f
   echo $B64 | base64 -d >> \$f
 done
 "@
 
-    $fixBytes = [System.Text.Encoding]::UTF8.GetBytes($FIX_SCRIPT)
-    $FIX_B64  = [Convert]::ToBase64String($fixBytes)
+$fixBytes = [System.Text.Encoding]::UTF8.GetBytes($FIX_SCRIPT)
+$FIX_B64  = [Convert]::ToBase64String($fixBytes)
 
-    ssm_run "`"echo $FIX_B64 | base64 -d | bash`"" | Out-Null
-
-} else {
-
-    ssm_run "`"echo $B64 | base64 -d > /etc/profile.d/ssm_prompt.sh && chmod +x /etc/profile.d/ssm_prompt.sh`"" | Out-Null
-}
+ssm_run "`"echo $FIX_B64 | base64 -d | bash`"" | Out-Null
 
 # ----------------------------
 # CONNECT
@@ -202,10 +183,11 @@ done
 Write-Host "Connecting as $TARGET_USER..."
 
 $cmd = "sudo su - $TARGET_USER"
+$param = "command=[""$cmd""]"
 
 aws ssm start-session `
   --target $INSTANCE_ID `
   --profile $PROFILE `
   --region $region `
   --document-name AWS-StartInteractiveCommand `
-  --parameters @{ command = @($cmd) }
+  --parameters $param
