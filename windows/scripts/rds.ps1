@@ -45,6 +45,22 @@ if (-not $JUMP) {
 Write-Host "Using Jumphost: $JUMP"
 Write-Host "Starting DB tunnels ($PROFILE)..."
 
+# -----------------------------
+# FETCH ALL RDS ENDPOINTS (FAST)
+# -----------------------------
+Write-Host "Fetching all RDS endpoints..."
+
+$rdsData = aws rds describe-db-instances `
+    --profile $PROFILE `
+    --region $REGION `
+    --output json | ConvertFrom-Json
+
+$rdsMap = @{}
+
+foreach ($db in $rdsData.DBInstances) {
+    $rdsMap[$db.DBInstanceIdentifier] = $db.Endpoint.Address
+}
+
 $CURRENT_ENV = ""
 
 # -----------------------------
@@ -72,6 +88,11 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
         return
     }
 
+    if (-not $ENDPOINT) {
+        Write-Host "[WARN] Endpoint not found for $DB"
+        return
+    }
+
     Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
 
     kill_port $PORT
@@ -84,16 +105,7 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
         $cmd
     ) -WindowStyle Hidden
 
-    # Wait for tunnel
-    for ($i = 1; $i -le 15; $i++) {
-        if (is_port_active $PORT) {
-            Write-Host "[OK] Tunnel ready: $DB ($PORT)"
-            return
-        }
-        Start-Sleep -Seconds 1
-    }
-
-    Write-Host "[WARN] Tunnel started (may take few seconds): $DB ($PORT)"
+    Write-Host "[OK] Tunnel started: $DB ($PORT)"
 }
 
 # -----------------------------
@@ -124,15 +136,7 @@ Get-Content $MAP_FILE | ForEach-Object {
     $DB = $parts[0].Trim()
     $PORT = $parts[1].Trim()
 
-    # -----------------------------
-    # GET ENDPOINT
-    # -----------------------------
-    $ENDPOINT = aws rds describe-db-instances `
-        --profile $PROFILE `
-        --region $REGION `
-        --db-instance-identifier $DB `
-        --query "DBInstances[0].Endpoint.Address" `
-        --output text
+    $ENDPOINT = $rdsMap[$DB]
 
     start_tunnel $DB $PORT $ENDPOINT
 }
@@ -141,12 +145,14 @@ Get-Content $MAP_FILE | ForEach-Object {
 # OUTPUT
 # -----------------------------
 Write-Host "----------------------------------------"
-Write-Host "[OK] All tunnels processed for profile: $PROFILE"
+Write-Host "[OK] All tunnels initiated for profile: $PROFILE"
 Write-Host "[INFO] Connect using:"
 Write-Host "Host: 127.0.0.1"
 Write-Host "----------------------------------------"
 
-Write-Host "Active tunnels:"
+Write-Host "Checking active tunnels..."
+
+Start-Sleep -Seconds 3
 
 Get-Content $MAP_FILE | ForEach-Object {
     $line = $_.Trim()
