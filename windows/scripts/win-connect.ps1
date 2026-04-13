@@ -21,7 +21,7 @@ aws-login $PROFILE
 # ----------------------------
 # FETCH INSTANCES (LINUX ONLY)
 # ----------------------------
-Write-Host "📡 Fetching instances..."
+Write-Host "Fetching instances..."
 
 $json = aws ec2 describe-instances `
     --profile $PROFILE `
@@ -48,7 +48,7 @@ foreach ($res in $data.Reservations) {
 }
 
 if ($instances.Count -eq 0) {
-    Write-Host "❌ No running instances found"
+    Write-Host "No running instances found"
     exit 1
 }
 
@@ -121,7 +121,8 @@ function ssm_run($cmd) {
 # ----------------------------
 Write-Host "Detecting instance OS..."
 
-$OS_RESULT = ssm_run '". /etc/os-release && echo $ID"'
+# FIXED HERE (&& → ;)
+$OS_RESULT = ssm_run '". /etc/os-release; echo $ID"'
 
 if ($OS_RESULT -match "ubuntu") {
     $TARGET_USER = "ubuntu"
@@ -137,13 +138,13 @@ if ($OS_RESULT -match "ubuntu") {
 if ($PROFILE -eq "prod") {
     $ENV_COLOR = "1;31"
     $HOST_COLOR = "1;33"
-    $EMOJI = "🔴"
-    $TAB_EMOJI = "🚨"
+    $EMOJI = "RED"
+    $TAB_EMOJI = "PROD"
 } else {
     $ENV_COLOR = "1;32"
     $HOST_COLOR = "1;36"
-    $EMOJI = "🟢"
-    $TAB_EMOJI = "✅"
+    $EMOJI = "GREEN"
+    $TAB_EMOJI = "UAT"
 }
 
 # ----------------------------
