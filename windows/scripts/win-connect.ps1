@@ -155,25 +155,14 @@ $B64   = [Convert]::ToBase64String($bytes)
 # ----------------------------
 # CONFIGURE PROMPT
 # ----------------------------
+Write-Host "Configuring prompt..."
 
 $FIX_SCRIPT = @"
 #!/bin/bash
 
-# Clean ALL old prompt injections safely
-sed -i '/SSM_PROMPT_INJECTED/d' /etc/bash.bashrc
-sed -i '/SSM_PROMPT_INJECTED/d' /home/$TARGET_USER/.bashrc
-sed -i '/SSM_PROMPT_INJECTED/d' /root/.bashrc
+sed -i "/^export PS1/d" /etc/bash.bashrc
+sed -i "/^export PS1/d" /home/$TARGET_USER/.bashrc
 
-# Remove any broken PS1 lines
-sed -i '/export PS1=/d' /etc/bash.bashrc
-sed -i '/export PS1=/d' /home/$TARGET_USER/.bashrc
-sed -i '/export PS1=/d' /root/.bashrc
-
-# Also remove stray "#" lines causing issue
-sed -i '/^#$/d' /home/$TARGET_USER/.bashrc
-sed -i '/^#$/d' /root/.bashrc
-
-# Apply clean prompt
 echo $B64 | base64 -d > /etc/profile.d/ssm_prompt.sh
 chmod +x /etc/profile.d/ssm_prompt.sh
 
