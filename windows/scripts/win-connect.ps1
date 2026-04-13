@@ -201,9 +201,11 @@ done
 # ----------------------------
 Write-Host "Connecting as $TARGET_USER..."
 
+$cmd = "sudo su - $TARGET_USER"
+
 aws ssm start-session `
   --target $INSTANCE_ID `
   --profile $PROFILE `
   --region $region `
   --document-name AWS-StartInteractiveCommand `
-  --parameters "command=[\"sudo -u $TARGET_USER -i\"]"
+  --parameters @{ command = @($cmd) }
