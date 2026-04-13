@@ -138,9 +138,9 @@ if ($OS_RESULT -match "ubuntu") {
 # PROMPT COLOR (FULL LINE)
 # ----------------------------
 if ($PROFILE -eq "prod") {
-    $RC_CONTENT = "export PS1='\[\033[1;31m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
+    $RC_CONTENT = "export PS1='\[\033[0;31m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
 } else {
-    $RC_CONTENT = "export PS1='\[\033[1;32m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
+    $RC_CONTENT = "export PS1='\[\033[0;32m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
 }
 
 $bytes = [System.Text.Encoding]::UTF8.GetBytes($RC_CONTENT)
