@@ -128,21 +128,14 @@ install_script() {
 
 install_script "scripts/aws-login"
 install_script "scripts/db-pc"
-#install_script "scripts/find-win"
 install_script "scripts/linux"
 install_script "scripts/rds"
-#install_script "scripts/win"
-#install_script "scripts/win-pc"
+
 
 # ----------------------------
 # Setup rds-map
 # ----------------------------
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-
-log "📝 Updating ~/.rds-map..."
-run_cmd "cp $SCRIPT_DIR/templates/rds-map $HOME/.rds-map"
-log "📝 Updating ~/.win-map..."
-run_cmd "cp $SCRIPT_DIR/templates/win-map $HOME/.win-map"
 
 # ----------------------------
 # Detect shell
@@ -189,17 +182,14 @@ alias wuat="win uat"
 alias wprod="win prod"
 '
 
-# auto-login
-# append_block "AWS_AUTO_LOGIN" "$SHELL_FILE" '
-# pgrep -f "aws-login uat" >/dev/null || aws-login uat >/dev/null 2>&1
-# pgrep -f "aws-login prod" >/dev/null || aws-login prod >/dev/null 2>&1
-# '
-
 append_block "AWS_AUTO_LOGIN" "$SHELL_FILE" '
+
 aws_auto_login() {
   aws sts get-caller-identity --profile uat >/dev/null 2>&1 || aws-login uat
   aws sts get-caller-identity --profile prod >/dev/null 2>&1 || aws-login prod
 }
+
+aws_auto_login
 '
 
 # WSL specific config
@@ -225,8 +215,6 @@ log ""
 log "👉 Usage:"
 log "   uat - for connecting linux uat servers"
 log "   prod - for connecting linux prod servers"
-log "   wuat - for connecting windows uat servers"
-log "   wprod - for connecting windows prod servers"
 log "   dbuat - open tunnels for uat dbs"
 log "   dbprod - open tunnels for prod dbs"
 log "   db-pc - Checking ports actively listening or not"
