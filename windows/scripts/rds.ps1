@@ -10,7 +10,7 @@ if (-not $PROFILE) {
 }
 
 if (-not (Test-Path $MAP_FILE)) {
-    Write-Host "❌ Mapping file not found (~/.rds-map)"
+    Write-Host "[ERROR] Mapping file not found (~/.rds-map)"
     exit 1
 }
 
@@ -38,7 +38,7 @@ $JUMP = aws ec2 describe-instances `
 $JUMP = $JUMP.Split("`n")[0]
 
 if (-not $JUMP) {
-    Write-Host "❌ No Jumphost found"
+    Write-Host "[ERROR] No Jumphost found"
     exit 1
 }
 
@@ -68,30 +68,32 @@ function kill_port($port) {
 function start_tunnel($DB, $PORT, $ENDPOINT) {
 
     if (is_port_active $PORT) {
-        Write-Host "✅ $DB already active on $PORT"
+        Write-Host "[OK] $DB already active on $PORT"
         return
     }
 
-    Write-Host "🚀 Starting: $DB → 127.0.0.1:$PORT"
+    Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
 
     kill_port $PORT
+
+    $cmd = "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{""host"":[""$ENDPOINT""],""portNumber"":[""3306""],""localPortNumber"":[""$PORT""]}'"
 
     Start-Process powershell -ArgumentList @(
         "-NoProfile",
         "-Command",
-        "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{""host"":[""$ENDPOINT""],""portNumber"":[""3306""],""localPortNumber"":[""$PORT""]}'"
+        $cmd
     ) -WindowStyle Hidden
 
-    # Wait loop (same as bash)
+    # Wait for tunnel
     for ($i = 1; $i -le 15; $i++) {
         if (is_port_active $PORT) {
-            Write-Host "✅ Tunnel ready: $DB ($PORT)"
+            Write-Host "[OK] Tunnel ready: $DB ($PORT)"
             return
         }
         Start-Sleep -Seconds 1
     }
 
-    Write-Host "⚠️ Tunnel started (may take few seconds): $DB ($PORT)"
+    Write-Host "[WARN] Tunnel started (may take few seconds): $DB ($PORT)"
 }
 
 # -----------------------------
@@ -139,8 +141,8 @@ Get-Content $MAP_FILE | ForEach-Object {
 # OUTPUT
 # -----------------------------
 Write-Host "----------------------------------------"
-Write-Host "✅ All tunnels processed for profile: $PROFILE"
-Write-Host "👉 Connect using:"
+Write-Host "[OK] All tunnels processed for profile: $PROFILE"
+Write-Host "[INFO] Connect using:"
 Write-Host "Host: 127.0.0.1"
 Write-Host "----------------------------------------"
 
@@ -153,11 +155,11 @@ Get-Content $MAP_FILE | ForEach-Object {
         $PORT = ($line.Split("=")[1]).Trim()
 
         if (is_port_active $PORT) {
-            Write-Host "✅ Port $PORT ACTIVE"
+            Write-Host "[OK] Port $PORT ACTIVE"
         }
     }
 }
 
 Write-Host ""
-Write-Host "🔍 Verify:"
-Write-Host "Test-NetConnection -ComputerName localhost -Port <port>"
+Write-Host "Verify:"
+Write-Host "Test-NetConnection -ComputerName localhost -Port PORT_NUMBER"
