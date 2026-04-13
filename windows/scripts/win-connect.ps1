@@ -36,7 +36,7 @@ $instances = @()
 foreach ($res in $data.Reservations) {
     foreach ($inst in $res.Instances) {
 
-        # Skip Windows
+        # Skip Windows instances
         if ($inst.Platform -eq "windows") {
             continue
         }
@@ -76,13 +76,15 @@ foreach ($inst in $instances) {
 Write-Host ""
 $choice = Read-Host "Select instance number"
 
-if (-not ($choice -as [int]) -or $choice -lt 1 -or $choice -gt $instances.Count) {
+[int]$num = 0
+
+if (-not [int]::TryParse($choice, [ref]$num) -or $num -lt 1 -or $num -gt $instances.Count) {
     Write-Host "Invalid selection"
     exit 1
 }
 
-$INSTANCE_ID   = $instances[$choice - 1].Id
-$INSTANCE_NAME = $instances[$choice - 1].Name
+$INSTANCE_ID   = $instances[$num - 1].Id
+$INSTANCE_NAME = $instances[$num - 1].Name
 
 # ----------------------------
 # SSM RUN FUNCTION
