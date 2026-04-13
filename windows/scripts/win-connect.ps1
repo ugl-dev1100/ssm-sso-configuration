@@ -36,7 +36,6 @@ $instances = @()
 foreach ($res in $data.Reservations) {
     foreach ($inst in $res.Instances) {
 
-        # Skip Windows
         if ($inst.Platform -eq "windows") {
             continue
         }
@@ -51,9 +50,6 @@ foreach ($res in $data.Reservations) {
     }
 }
 
-# ----------------------------
-# VALIDATION
-# ----------------------------
 if ($instances.Count -eq 0) {
     Write-Host "No running instances found"
     exit 1
@@ -139,35 +135,54 @@ if ($OS_RESULT -match "ubuntu") {
 }
 
 # ----------------------------
-# PROMPT COLOR (UAT / PROD)
+# PROMPT COLOR (FULL LINE)
 # ----------------------------
 if ($PROFILE -eq "prod") {
-    # RED
-    $RC_CONTENT = "export PS1='\[\e[0;31m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\e[0m\]'"
+    $RC_CONTENT = "export PS1='\[\033[1;31m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
 } else {
-    # GREEN
-    $RC_CONTENT = "export PS1='\[\e[0;32m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\e[0m\]'"
+    $RC_CONTENT = "export PS1='\[\033[1;32m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\\$ \[\033[0m\]'"
 }
 
 $bytes = [System.Text.Encoding]::UTF8.GetBytes($RC_CONTENT)
 $B64   = [Convert]::ToBase64String($bytes)
 
 # ----------------------------
-# CONFIGURE PROMPT
+# CONFIGURE PROMPT (ROBUST)
 # ----------------------------
 Write-Host "Configuring prompt..."
 
 $FIX_SCRIPT = @"
 #!/bin/bash
 
-sed -i "/^export PS1/d" /etc/bash.bashrc
-sed -i "/^export PS1/d" /home/$TARGET_USER/.bashrc
+# Ubuntu detection
+if [ -f /etc/bash.bashrc ]; then
 
+  sed -i "/^export PS1/d" /etc/bash.bashrc
+  sed -i "/SSM_PROMPT_INJECTED/d" /etc/bash.bashrc
+  sed -i "/^if ! \[ -n \"\${SUDO_USER}\"/,/^fi/s/^/#DISABLED /g" /etc/bash.bashrc
+
+  sed -i "/SSM_PROMPT_INJECTED/d" /home/$TARGET_USER/.bashrc
+  sed -i "/^export PS1/d" /home/$TARGET_USER/.bashrc
+  sed -i "s/^PS1=/#DISABLED PS1=/g" /home/$TARGET_USER/.bashrc
+
+  sed -i "/SSM_PROMPT_INJECTED/d" /root/.bashrc
+  sed -i "/^export PS1/d" /root/.bashrc
+  sed -i "s/^PS1=/#DISABLED PS1=/g" /root/.bashrc
+
+else
+
+  sed -i "/^export PS1/d" /home/$TARGET_USER/.bashrc 2>/dev/null || true
+
+fi
+
+# Apply prompt globally
 echo $B64 | base64 -d > /etc/profile.d/ssm_prompt.sh
 chmod +x /etc/profile.d/ssm_prompt.sh
 
+# Ensure last override
 for f in /home/$TARGET_USER/.bashrc /root/.bashrc; do
   echo "" >> \$f
+  echo "# SSM_PROMPT_INJECTED" >> \$f
   echo $B64 | base64 -d >> \$f
 done
 "@
