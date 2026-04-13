@@ -21,14 +21,10 @@ aws-login $PROFILE
 # ----------------------------
 # FETCH INSTANCES (LINUX ONLY)
 # ----------------------------
-Write-Host "Fetching instances..."
-
 $json = aws ec2 describe-instances `
     --profile $PROFILE `
     --region $region `
-    --filters `
-        Name=instance-state-name,Values=running `
-        Name=platform,Values= `
+    --filters Name=instance-state-name,Values=running `
     --output json
 
 $data = $json | ConvertFrom-Json
@@ -37,6 +33,12 @@ $instances = @()
 
 foreach ($res in $data.Reservations) {
     foreach ($inst in $res.Instances) {
+
+        # 👉 Skip Windows
+        if ($inst.Platform -eq "windows") {
+            continue
+        }
+
         $name = ($inst.Tags | Where-Object {$_.Key -eq "Name"}).Value
         if (-not $name) { $name = "No-Name" }
 
@@ -46,6 +48,8 @@ foreach ($res in $data.Reservations) {
         }
     }
 }
+
+$instances = @()
 
 if ($instances.Count -eq 0) {
     Write-Host "No running instances found"
