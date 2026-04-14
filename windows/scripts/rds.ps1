@@ -14,14 +14,20 @@ if (-not (Test-Path $MAP_FILE)) {
     exit 1
 }
 
+# -----------------------------
 # REGION
+# -----------------------------
 $REGION = aws configure get region --profile $PROFILE 2>$null
 if (-not $REGION) { $REGION = "us-east-1" }
 
+# -----------------------------
 # LOGIN
+# -----------------------------
 aws-login $PROFILE
 
-# JUMPHOST
+# -----------------------------
+# FIND JUMPHOST
+# -----------------------------
 $JUMP = aws ec2 describe-instances `
   --profile $PROFILE `
   --region $REGION `
@@ -39,7 +45,11 @@ if (-not $JUMP) {
 Write-Host "Using Jumphost: $JUMP"
 Write-Host "Starting DB tunnels ($PROFILE)..."
 
-# FETCH ALL RDS
+# -----------------------------
+# FETCH ALL RDS ENDPOINTS
+# -----------------------------
+Write-Host "Fetching RDS endpoints..."
+
 $rdsData = aws rds describe-db-instances `
     --profile $PROFILE `
     --region $REGION `
@@ -52,17 +62,10 @@ foreach ($db in $rdsData.DBInstances) {
 
 $CURRENT_ENV = ""
 
-function is_port_active($port) {
-    $result = Test-NetConnection -ComputerName 127.0.0.1 -Port $port -WarningAction SilentlyContinue
-    return $result.TcpTestSucceeded
-}
-
+# -----------------------------
+# FUNCTIONS
+# -----------------------------
 function start_tunnel($DB, $PORT, $ENDPOINT) {
-
-    if (is_port_active $PORT) {
-        Write-Host "[OK] $DB already active on $PORT"
-        return
-    }
 
     if (-not $ENDPOINT) {
         Write-Host "[WARN] Endpoint not found for $DB"
@@ -71,18 +74,27 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
 
     Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
 
-    $cmd = "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{""host"":[""$ENDPOINT""],""portNumber"":[""3306""],""localPortNumber"":[""$PORT""]}'"
+    # Build JSON safely
+    $params = @{
+        host = @("$ENDPOINT")
+        portNumber = @("3306")
+        localPortNumber = @("$PORT")
+    } | ConvertTo-Json -Compress
 
-    # 🔥 IMPORTANT FIX (KEEP SESSION ALIVE)
+    $command = "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '$params'"
+
+    # Open visible PowerShell window (IMPORTANT)
     Start-Process powershell -ArgumentList @(
         "-NoProfile",
         "-NoExit",
         "-Command",
-        $cmd
+        $command
     )
 }
 
-# PROCESS MAP
+# -----------------------------
+# PROCESS MAP FILE
+# -----------------------------
 Get-Content $MAP_FILE | ForEach-Object {
 
     $line = $_.Trim()
@@ -106,8 +118,11 @@ Get-Content $MAP_FILE | ForEach-Object {
     start_tunnel $DB $PORT $ENDPOINT
 }
 
+# -----------------------------
+# DONE
+# -----------------------------
 Write-Host "----------------------------------------"
 Write-Host "[OK] Tunnels started"
 Write-Host "----------------------------------------"
-Write-Host "Use:"
+Write-Host "Now verify:"
 Write-Host "Test-NetConnection -ComputerName localhost -Port PORT"
