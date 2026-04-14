@@ -64,11 +64,22 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
         return
     }
 
+    if (-not $ENDPOINT) {
+        Write-Host "[WARN] Endpoint not found for $DB"
+        return
+    }
+
     Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
 
     $cmd = "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{""host"":[""$ENDPOINT""],""portNumber"":[""3306""],""localPortNumber"":[""$PORT""]}'"
 
-    Start-Process powershell -ArgumentList "-NoProfile", "-Command", $cmd
+    # 🔥 IMPORTANT FIX (KEEP SESSION ALIVE)
+    Start-Process powershell -ArgumentList @(
+        "-NoProfile",
+        "-NoExit",
+        "-Command",
+        $cmd
+    )
 }
 
 # PROCESS MAP
