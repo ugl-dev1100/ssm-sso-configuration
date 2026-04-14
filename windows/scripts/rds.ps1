@@ -74,12 +74,18 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
 
     Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
 
-    Start-Process powershell -ArgumentList @(
-        "-NoProfile",
-        "-NoExit",
-        "-Command",
-        "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters `"host=[$ENDPOINT],portNumber=[3306],localPortNumber=[$PORT]`""
+    $arguments = @(
+        "ssm", "start-session",
+        "--target", $JUMP,
+        "--profile", $PROFILE,
+        "--region", $REGION,
+        "--document-name", "AWS-StartPortForwardingSessionToRemoteHost",
+        "--parameters", "host=[$ENDPOINT],portNumber=[3306],localPortNumber=[$PORT]"
     )
+
+    Start-Process -FilePath "aws" `
+        -ArgumentList $arguments `
+        -WindowStyle Hidden
 }
 
 # -----------------------------
