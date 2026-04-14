@@ -231,7 +231,18 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 # ----------------------------
-# FETCH INSTANCES (LINUX ONLY)
+# GET SSM CONNECTED INSTANCES
+# ----------------------------
+$ssmInstances = aws ssm describe-instance-information `
+    --profile $PROFILE `
+    --region $region `
+    --query "InstanceInformationList[].InstanceId" `
+    --output text
+
+$ssmSet = $ssmInstances -split "\s+"
+
+# ----------------------------
+# FETCH INSTANCES
 # ----------------------------
 Write-Host "Fetching instances..."
 
@@ -239,16 +250,23 @@ $json = aws ec2 describe-instances `
     --profile $PROFILE `
     --region $region `
     --filters Name=instance-state-name,Values=running `
-    --query "Reservations[].Instances[].{Name:Tags[?Key=='Name']|[0].Value,Id:InstanceId,ImageId:ImageId,Platform:Platform}" `
+    --query "Reservations[].Instances[].{
+        Name:Tags[?Key=='Name']|[0].Value,
+        Id:InstanceId,
+        ImageId:ImageId,
+        Platform:Platform
+    }" `
     --output json
 
 $instances = $json | ConvertFrom-Json
 
-# Filter Linux only
-$instances = $instances | Where-Object { $_.Platform -ne "windows" }
+# Filter Linux + SSM connected
+$instances = $instances | Where-Object {
+    $_.Platform -ne "windows" -and ($ssmSet -contains $_.Id)
+}
 
 if (-not $instances) {
-    Write-Host "No running instances found"
+    Write-Host "No SSM-connected Linux instances found"
     exit 1
 }
 
@@ -270,6 +288,7 @@ for ($i=0; $i -lt $instances.Count; $i++) {
 Write-Host ""
 $choice = Read-Host "Select instance number"
 
+$num = 0
 if (-not [int]::TryParse($choice, [ref]$num) -or $num -lt 1 -or $num -gt $instances.Count) {
     Write-Host "Invalid selection"
     exit 1
@@ -282,7 +301,7 @@ $INSTANCE_NAME = $inst.Name
 $IMAGE_ID = $inst.ImageId
 
 # ----------------------------
-# FAST OS DETECTION (NO SSM)
+# FAST OS DETECTION (AMI)
 # ----------------------------
 $AMI_NAME = aws ec2 describe-images `
     --image-ids $IMAGE_ID `
@@ -298,7 +317,7 @@ if ($AMI_NAME -match "ubuntu") {
 }
 
 # ----------------------------
-# PROMPT (FULL COLOR)
+# PROMPT COLOR
 # ----------------------------
 if ($PROFILE -eq "prod") {
     $COLOR = "0;31"
@@ -317,7 +336,7 @@ export PS1="\[\033[$COLOR`m\][$PROFILE][$INSTANCE_NAME][\u@\h \W]\$\[\033[0m\] "
 $B64 = [Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($RC_CONTENT))
 
 # ----------------------------
-# PROMPT INJECTION (ASYNC 🚀)
+# PROMPT INJECTION (ASYNC)
 # ----------------------------
 Write-Host "Configuring prompt (background)..."
 
@@ -332,7 +351,7 @@ aws ssm send-command `
     | Out-Null
 
 # ----------------------------
-# CONNECT (FAST)
+# CONNECT
 # ----------------------------
 Write-Host "Connecting as $TARGET_USER..."
 
