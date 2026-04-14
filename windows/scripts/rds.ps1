@@ -14,20 +14,14 @@ if (-not (Test-Path $MAP_FILE)) {
     exit 1
 }
 
-# -----------------------------
 # REGION
-# -----------------------------
 $REGION = aws configure get region --profile $PROFILE 2>$null
 if (-not $REGION) { $REGION = "us-east-1" }
 
-# -----------------------------
-# SSO LOGIN
-# -----------------------------
+# LOGIN
 aws-login $PROFILE
 
-# -----------------------------
-# FIND JUMPHOST
-# -----------------------------
+# JUMPHOST
 $JUMP = aws ec2 describe-instances `
   --profile $PROFILE `
   --region $REGION `
@@ -45,40 +39,22 @@ if (-not $JUMP) {
 Write-Host "Using Jumphost: $JUMP"
 Write-Host "Starting DB tunnels ($PROFILE)..."
 
-# -----------------------------
-# FETCH ALL RDS ENDPOINTS (FAST)
-# -----------------------------
-Write-Host "Fetching all RDS endpoints..."
-
+# FETCH ALL RDS
 $rdsData = aws rds describe-db-instances `
     --profile $PROFILE `
     --region $REGION `
     --output json | ConvertFrom-Json
 
 $rdsMap = @{}
-
 foreach ($db in $rdsData.DBInstances) {
     $rdsMap[$db.DBInstanceIdentifier] = $db.Endpoint.Address
 }
 
 $CURRENT_ENV = ""
 
-# -----------------------------
-# FUNCTIONS
-# -----------------------------
-
 function is_port_active($port) {
     $result = Test-NetConnection -ComputerName 127.0.0.1 -Port $port -WarningAction SilentlyContinue
     return $result.TcpTestSucceeded
-}
-
-function kill_port($port) {
-    $conns = Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue
-    foreach ($c in $conns) {
-        try {
-            Stop-Process -Id $c.OwningProcess -Force -ErrorAction SilentlyContinue
-        } catch {}
-    }
 }
 
 function start_tunnel($DB, $PORT, $ENDPOINT) {
@@ -88,44 +64,22 @@ function start_tunnel($DB, $PORT, $ENDPOINT) {
         return
     }
 
-    if (-not $ENDPOINT) {
-        Write-Host "[WARN] Endpoint not found for $DB"
-        return
-    }
-
     Write-Host "[INFO] Starting: $DB -> 127.0.0.1:$PORT"
-
-    kill_port $PORT
 
     $cmd = "aws ssm start-session --target $JUMP --profile $PROFILE --region $REGION --document-name AWS-StartPortForwardingSessionToRemoteHost --parameters '{""host"":[""$ENDPOINT""],""portNumber"":[""3306""],""localPortNumber"":[""$PORT""]}'"
 
-    Start-Process powershell -ArgumentList @(
-        "-NoProfile",
-        "-Command",
-        $cmd
-    ) -WindowStyle Hidden
-
-    Write-Host "[OK] Tunnel started: $DB ($PORT)"
+    Start-Process powershell -ArgumentList "-NoProfile", "-Command", $cmd
 }
 
-# -----------------------------
-# PROCESS MAP FILE
-# -----------------------------
+# PROCESS MAP
 Get-Content $MAP_FILE | ForEach-Object {
 
     $line = $_.Trim()
 
     if (-not $line) { return }
 
-    if ($line -eq "[uat_databases]") {
-        $CURRENT_ENV = "uat"
-        return
-    }
-
-    if ($line -eq "[prod_databases]") {
-        $CURRENT_ENV = "prod"
-        return
-    }
+    if ($line -eq "[uat_databases]") { $CURRENT_ENV = "uat"; return }
+    if ($line -eq "[prod_databases]") { $CURRENT_ENV = "prod"; return }
 
     if ($line.StartsWith("#")) { return }
     if ($CURRENT_ENV -ne $PROFILE) { return }
@@ -141,31 +95,8 @@ Get-Content $MAP_FILE | ForEach-Object {
     start_tunnel $DB $PORT $ENDPOINT
 }
 
-# -----------------------------
-# OUTPUT
-# -----------------------------
 Write-Host "----------------------------------------"
-Write-Host "[OK] All tunnels initiated for profile: $PROFILE"
-Write-Host "[INFO] Connect using:"
-Write-Host "Host: 127.0.0.1"
+Write-Host "[OK] Tunnels started"
 Write-Host "----------------------------------------"
-
-Write-Host "Checking active tunnels..."
-
-Start-Sleep -Seconds 3
-
-Get-Content $MAP_FILE | ForEach-Object {
-    $line = $_.Trim()
-
-    if ($line -match "=") {
-        $PORT = ($line.Split("=")[1]).Trim()
-
-        if (is_port_active $PORT) {
-            Write-Host "[OK] Port $PORT ACTIVE"
-        }
-    }
-}
-
-Write-Host ""
-Write-Host "Verify:"
-Write-Host "Test-NetConnection -ComputerName localhost -Port PORT_NUMBER"
+Write-Host "Use:"
+Write-Host "Test-NetConnection -ComputerName localhost -Port PORT"
