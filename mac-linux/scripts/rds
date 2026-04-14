@@ -22,7 +22,7 @@ JUMP=$(aws ec2 describe-instances \
   --profile "$PROFILE" \
   --region "$REGION" \
   --filters "Name=instance-state-name,Values=running" \
-  --query "Reservations[].Instances[?contains(Tags[?Key=='Name'].Value | [0], 'Jumphost')].InstanceId" \
+  --query "Reservations[].Instances[?contains(join('', Tags[?Key=='Name'].Value), 'Jumphost')].InstanceId"\
   --output text | head -n 1)
 
 [ -z "$JUMP" ] && { echo "❌ No Jumphost found"; exit 1; }
@@ -66,16 +66,8 @@ start_tunnel() {
     --parameters "{\"host\":[\"$ENDPOINT\"],\"portNumber\":[\"3306\"],\"localPortNumber\":[\"$PORT\"]}" \
     > /tmp/ssm-$PORT.log 2>&1 &
 
-  # Wait properly (IMPORTANT FIX)
-  for i in {1..15}; do
-    if is_port_active "$PORT"; then
-      echo "✅ Tunnel ready: $DB ($PORT)"
-      return
-    fi
-    sleep 1
-  done
-
-  echo "⚠️ Tunnel started (may take few seconds): $DB ($PORT)"
+  # Just mark it started (no wait)
+  echo "⏳ Tunnel launching: $DB ($PORT)"
 }
 
 # -----------------------------
@@ -116,14 +108,14 @@ echo "👉 Connect using:"
 echo "Host: 127.0.0.1"
 echo "----------------------------------------"
 
-echo "Active tunnels:"
-while IFS="=" read -r DB PORT; do
-  PORT=$(echo "$PORT" | xargs)
+# echo "Active tunnels:"
+# while IFS="=" read -r DB PORT; do
+#   PORT=$(echo "$PORT" | xargs)
 
-  if is_port_active "$PORT"; then
-    echo "✅ Port $PORT ACTIVE"
-  fi
-done < "$MAP_FILE"
+#   if is_port_active "$PORT"; then
+#     echo "✅ Port $PORT ACTIVE"
+#   fi
+# done < "$MAP_FILE"
 
 echo ""
 echo "🔍 Verify:"
