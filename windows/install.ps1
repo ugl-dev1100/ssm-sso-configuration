@@ -396,40 +396,15 @@
 # Write-Host "   dbprod  - open tunnels for prod dbs"
 # Write-Host "   dbpc    - check active ports"
 
-param(
-    [string]$RUN_WITH_BYPASS
-)
-
-# ----------------------------
-# SELF-RELAUNCH WITH BYPASS
-# ----------------------------
-if ($RUN_WITH_BYPASS -ne "1") {
-    Write-Host "Starting Dev Environment Setup..."
-    Write-Host "Restarting script with ExecutionPolicy Bypass..."
-
-    Start-Process powershell -Verb RunAs -ArgumentList @(
-        "-ExecutionPolicy Bypass",
-        "-NoProfile",
-        "-File `"$PSCommandPath`"",
-        "-RUN_WITH_BYPASS 1"
-    )
-
-    exit
-}
-
 Write-Host "Starting Dev Environment Setup..."
 
 # ----------------------------
-# SAFE EXECUTION POLICY
+# TEMP EXECUTION POLICY (SAFE)
 # ----------------------------
 try {
-    $currentPolicy = Get-ExecutionPolicy -Scope CurrentUser
-    if ($currentPolicy -ne "RemoteSigned") {
-        Write-Host "Setting execution policy to RemoteSigned..."
-        Set-ExecutionPolicy RemoteSigned -Scope CurrentUser -Force
-    }
+    Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force
 } catch {
-    Write-Host "Warning: Unable to set execution policy"
+    Write-Host "⚠️ Could not set execution policy (continuing...)"
 }
 
 # ----------------------------
