@@ -14,24 +14,29 @@ if (!(Test-Path $mapFile)) {
 }
 
 # ----------------------------
-# DETECT DBEAVER DIRECTORY
+# DETECT DBEAVER WORKSPACE (CORRECT)
 # ----------------------------
-$dbeaverBase = Get-ChildItem "$HOME" -Directory -Filter ".dbeaver*" `
-    | Sort-Object LastWriteTime -Descending `
-    | Select-Object -First 1
+$dbeaverWorkspaceRoot = "$env:APPDATA\DBeaverData"
 
-if (-not $dbeaverBase) {
-    Write-Host "No DBeaver directory found, creating default..."
-    $dbeaverBase = New-Item -ItemType Directory -Path "$HOME\.dbeaver4"
-} 
+if (Test-Path $dbeaverWorkspaceRoot) {
+    $dbeaverWorkspace = Get-ChildItem $dbeaverWorkspaceRoot -Directory -Filter "workspace*" `
+        | Sort-Object LastWriteTime -Descending `
+        | Select-Object -First 1
+}
 
-$dbeaverBasePath = $dbeaverBase.FullName
-$dbeaverDir = "$dbeaverBasePath\General"
+if ($dbeaverWorkspace) {
+    $dbeaverDir = "$($dbeaverWorkspace.FullName)\General"
+    Write-Host "Using DBeaver workspace: $($dbeaverWorkspace.FullName)"
+} else {
+    Write-Host "Workspace not found, fallback to .dbeaver4"
+
+    $dbeaverDir = "$HOME\.dbeaver4\General"
+    New-Item -ItemType Directory -Path $dbeaverDir -Force | Out-Null
+}
+
 $dbeaverFile = "$dbeaverDir\.dbeaver-data-sources.xml"
 
-Write-Host "Using DBeaver path: $dbeaverBasePath"
-
-# Ensure directories
+# Ensure directory exists
 if (!(Test-Path $dbeaverDir)) {
     New-Item -ItemType Directory -Path $dbeaverDir -Force | Out-Null
 }
@@ -70,8 +75,11 @@ foreach ($line in $content) {
     }
 }
 
+# ----------------------------
+# EMPTY CHECK
+# ----------------------------
 if (-not $newConnections) {
-    Write-Host "No valid DB entries found"
+    Write-Host "No valid DB entries found in .rds-map"
     return
 }
 
@@ -85,7 +93,7 @@ $newConnections
 "@
 
 # ----------------------------
-# CREATE / UPDATE
+# CREATE FILE IF NOT EXISTS
 # ----------------------------
 if (!(Test-Path $dbeaverFile)) {
     $xmlContent = "<connections>`n$managedBlock`n</connections>"
@@ -94,12 +102,17 @@ if (!(Test-Path $dbeaverFile)) {
     return
 }
 
+# ----------------------------
+# UPDATE EXISTING FILE
+# ----------------------------
 $contentXml = Get-Content $dbeaverFile -Raw
 
+# Remove old managed block
 if ($contentXml -match 'SSM_MANAGED_START') {
     $contentXml = $contentXml -replace '(?s)<!-- SSM_MANAGED_START -->.*?<!-- SSM_MANAGED_END -->', ''
 }
 
+# Insert new block
 if ($contentXml -match "</connections>") {
     $contentXml = $contentXml -replace '</connections>', "$managedBlock`n</connections>"
 } else {
@@ -107,6 +120,7 @@ if ($contentXml -match "</connections>") {
     $contentXml = "<connections>`n$managedBlock`n</connections>"
 }
 
+# Save file
 $contentXml | Out-File -FilePath $dbeaverFile -Encoding utf8
 
 Write-Host "DBeaver connections synced"
