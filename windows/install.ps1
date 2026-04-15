@@ -396,17 +396,28 @@
 # Write-Host "   dbprod  - open tunnels for prod dbs"
 # Write-Host "   dbpc    - check active ports"
 
-Write-Host "Starting Dev Environment Setup..."
+param(
+    [string]$RUN_WITH_BYPASS
+)
 
 # ----------------------------
 # SELF-RELAUNCH WITH BYPASS
 # ----------------------------
-if ($env:RUN_WITH_BYPASS -ne "1") {
+if ($RUN_WITH_BYPASS -ne "1") {
+    Write-Host "Starting Dev Environment Setup..."
     Write-Host "Restarting script with ExecutionPolicy Bypass..."
-    $env:RUN_WITH_BYPASS = "1"
-    Start-Process powershell -ArgumentList "-ExecutionPolicy Bypass -File `"$PSCommandPath`"" -Verb RunAs
+
+    Start-Process powershell -Verb RunAs -ArgumentList @(
+        "-ExecutionPolicy Bypass",
+        "-NoProfile",
+        "-File `"$PSCommandPath`"",
+        "-RUN_WITH_BYPASS 1"
+    )
+
     exit
 }
+
+Write-Host "Starting Dev Environment Setup..."
 
 # ----------------------------
 # SAFE EXECUTION POLICY
@@ -509,6 +520,7 @@ if (-not (Get-Command session-manager-plugin -ErrorAction SilentlyContinue)) {
 # ----------------------------
 Write-Host "Installing scripts..."
 
+$bin = "$env:USERPROFILE\bin"
 $scriptsPath = "$PSScriptRoot\scripts"
 
 if (Test-Path $scriptsPath) {
@@ -550,6 +562,8 @@ if (Test-Path $dbScript) {
 $profilePath = $PROFILE
 New-Item -ItemType File -Force -Path $profilePath | Out-Null
 
+Write-Host "Updating PowerShell profile..."
+
 $block = @"
 # >>> SSM_SETUP >>>
 
@@ -578,9 +592,12 @@ function dbpc { db-pc }
 # <<< SSM_SETUP <<<
 "@
 
-$content = Get-Content $profilePath -Raw
-$content = $content -replace '# >>> SSM_SETUP >>>[\s\S]*?# <<< SSM_SETUP <<<', ''
-$content | Set-Content $profilePath
+if (Test-Path $profilePath) {
+    $content = Get-Content $profilePath -Raw
+    $content = $content -replace '# >>> SSM_SETUP >>>[\s\S]*?# <<< SSM_SETUP <<<', ''
+    $content | Set-Content $profilePath
+}
+
 Add-Content $profilePath $block
 
 # ----------------------------
@@ -588,5 +605,8 @@ Add-Content $profilePath $block
 # ----------------------------
 Write-Host ""
 Write-Host "✅ Setup Complete!"
-Write-Host "👉 Run: . `$PROFILE"
-Write-Host "👉 Open DBeaver → DBs ready"
+Write-Host ""
+Write-Host "Reload PowerShell:"
+Write-Host "   . `$PROFILE"
+Write-Host ""
+Write-Host "Open DBeaver → DB connections are ready 🚀"
