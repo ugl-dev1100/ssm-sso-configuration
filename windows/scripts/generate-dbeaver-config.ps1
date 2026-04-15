@@ -1,9 +1,6 @@
-# ----------------------------
-# CONFIG
-# ----------------------------
 $mapFile = "$HOME\.rds-map"
 
-Write-Host "Generating DBeaver configuration..."
+Write-Host "Generating DBeaver JSON configuration..."
 
 if (!(Test-Path $mapFile)) {
     Write-Host "ERROR: .rds-map not found"
@@ -13,96 +10,63 @@ if (!(Test-Path $mapFile)) {
 # ----------------------------
 # DETECT WORKSPACE
 # ----------------------------
-$dbeaverWorkspaceRoot = "$env:APPDATA\DBeaverData"
+$dbeaverWorkspace = Get-ChildItem "$env:APPDATA\DBeaverData" -Directory -Filter "workspace*" |
+    Sort-Object LastWriteTime -Descending |
+    Select-Object -First 1
 
-if (Test-Path $dbeaverWorkspaceRoot) {
-    $dbeaverWorkspace = Get-ChildItem $dbeaverWorkspaceRoot -Directory -Filter "workspace*" |
-        Sort-Object LastWriteTime -Descending |
-        Select-Object -First 1
+if (-not $dbeaverWorkspace) {
+    Write-Host "ERROR: DBeaver workspace not found"
+    return
 }
 
-if ($dbeaverWorkspace) {
-    $dbeaverDir = "$($dbeaverWorkspace.FullName)\General"
-    Write-Host "Using workspace: $($dbeaverWorkspace.FullName)"
-} else {
-    $dbeaverDir = "$HOME\.dbeaver4\General"
-    New-Item -ItemType Directory -Path $dbeaverDir -Force | Out-Null
-}
+$generalPath = "$($dbeaverWorkspace.FullName)\General"
+$jsonFile = "$generalPath\data-sources.json"
 
-$dbeaverFile = "$dbeaverDir\.dbeaver-data-sources.xml"
-
-if (!(Test-Path $dbeaverDir)) {
-    New-Item -ItemType Directory -Path $dbeaverDir -Force | Out-Null
-}
+Write-Host "Using workspace: $($dbeaverWorkspace.FullName)"
 
 # ----------------------------
-# READ MAP
+# BUILD CONNECTIONS
 # ----------------------------
-$content = Get-Content $mapFile
-$newConnections = ""
+$dataSources = @{}
 
-foreach ($line in $content) {
+Get-Content $mapFile | ForEach-Object {
 
-    if ($line -match "^\s*$" -or $line -match "^\[") { continue }
+    $line = $_.Trim()
+
+    if ($line -match "^\s*$" -or $line -match "^\[") { return }
 
     if ($line -match "=") {
         $parts = $line.Split("=")
         $name = $parts[0].Trim()
         $port = $parts[1].Trim()
 
-        $uuid = [guid]::NewGuid().ToString()
+        $id = [guid]::NewGuid().ToString()
 
-        $newConnections += @"
-<data-source id="$uuid" name="$name" driver="mysql">
-    <configuration>
-        <host>127.0.0.1</host>
-        <port>$port</port>
-        <database>$name</database>
-    </configuration>
-</data-source>
-"@
+        $dataSources[$id] = @{
+            provider = "mysql"
+            name     = $name
+            configuration = @{
+                host = "127.0.0.1"
+                port = $port
+                database = $name
+            }
+        }
     }
 }
 
-if (-not $newConnections) {
+if ($dataSources.Count -eq 0) {
     Write-Host "No DB entries found"
     return
 }
 
 # ----------------------------
-# MANAGED BLOCK
+# WRITE JSON
 # ----------------------------
-$managedBlock = @"
-<!-- SSM_MANAGED_START -->
-$newConnections
-<!-- SSM_MANAGED_END -->
-"@
-
-# ----------------------------
-# CREATE / UPDATE
-# ----------------------------
-if (!(Test-Path $dbeaverFile)) {
-    $xmlContent = "<data-sources>`n$managedBlock`n</data-sources>"
-    $xmlContent | Out-File $dbeaverFile -Encoding utf8
-    Write-Host "Created config"
-    return
+$jsonObject = @{
+    connections = $dataSources
 }
 
-$contentXml = Get-Content $dbeaverFile -Raw
+$jsonObject | ConvertTo-Json -Depth 5 | Out-File $jsonFile -Encoding utf8
 
-# Remove old block
-if ($contentXml -match 'SSM_MANAGED_START') {
-    $contentXml = $contentXml -replace '(?s)<!-- SSM_MANAGED_START -->.*?<!-- SSM_MANAGED_END -->', ''
-}
-
-# Insert new block
-if ($contentXml -match "</data-sources>") {
-    $contentXml = $contentXml -replace '</data-sources>', "$managedBlock`n</data-sources>"
-} else {
-    $contentXml = "<data-sources>`n$managedBlock`n</data-sources>"
-}
-
-$contentXml | Out-File $dbeaverFile -Encoding utf8
-
-Write-Host "DBeaver connections synced"
+Write-Host "DBeaver JSON config created"
 Write-Host "Restart DBeaver"
