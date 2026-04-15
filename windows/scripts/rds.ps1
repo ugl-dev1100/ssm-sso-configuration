@@ -150,13 +150,29 @@ if (Get-Command aws-login -ErrorAction SilentlyContinue) {
 # -----------------------------
 # FIND JUMPHOST
 # -----------------------------
+# $JUMP = aws ec2 describe-instances `
+#   --profile $ENV `
+#   --region $REGION `
+#   --filters Name=instance-state-name,Values=running `
+#   --query "Reservations[].Instances[?contains(Tags[?Key=='Name'].Value | [0], 'Jumphost')].InstanceId" `
+#   --output text
 $JUMP = aws ec2 describe-instances `
   --profile $ENV `
   --region $REGION `
-  --filters Name=instance-state-name,Values=running `
-  --query "Reservations[].Instances[?contains(Tags[?Key=='Name'].Value | [0], 'Jumphost')].InstanceId" `
+  --filters `
+    Name=instance-state-name,Values=running `
+    Name=tag:Role,Values=Jumphost `
+  --query "Reservations[].Instances[].InstanceId" `
   --output text
 
+$JUMP = $JUMP -split "\s+" | Select-Object -First 1
+
+if (-not $JUMP) {
+    Write-Host "[ERROR] No Jumphost found"
+    exit 1
+}
+
+Write-Host "Using Jumphost: $JUMP"
 $JUMP = $JUMP.Split("`n")[0]
 
 if (-not $JUMP) {
