@@ -16,9 +16,12 @@ if (!(Test-Path $mapFile)) {
     exit
 }
 
+# ----------------------------
+# ENSURE DBEAVER PATH EXISTS (FIXED)
+# ----------------------------
 if (!(Test-Path $dbeaverBase)) {
-    Write-Host "Open DBeaver once and re-run"
-    return
+    Write-Host "DBeaver folder not found, creating..."
+    New-Item -ItemType Directory -Path $dbeaverBase -Force | Out-Null
 }
 
 if (!(Test-Path $dbeaverDir)) {
@@ -82,7 +85,7 @@ $newConnections
 if (!(Test-Path $dbeaverFile)) {
     $xmlContent = "<connections>`n$managedBlock`n</connections>"
     $xmlContent | Out-File -FilePath $dbeaverFile -Encoding utf8
-    Write-Host "Created DBeaver config"
+    Write-Host "Created DBeaver config file"
     return
 }
 
@@ -91,7 +94,7 @@ if (!(Test-Path $dbeaverFile)) {
 # ----------------------------
 $contentXml = Get-Content $dbeaverFile -Raw
 
-# Remove old block
+# Remove old managed block
 if ($contentXml -match 'SSM_MANAGED_START') {
     $contentXml = $contentXml -replace '(?s)<!-- SSM_MANAGED_START -->.*?<!-- SSM_MANAGED_END -->', ''
 }
