@@ -148,7 +148,7 @@ if (Get-Command aws-login -ErrorAction SilentlyContinue) {
 }
 
 $JUMP = aws ec2 describe-instances `
-  --profile $PROFILE `
+  --profile $AWS_PROFILE_NAME `
   --region $REGION `
   --filters Name=instance-state-name,Values=running `
   --query "Reservations[].Instances[?contains(join('', Tags[?Key=='Name'].Value), 'Jumphost')].InstanceId" `
