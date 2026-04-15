@@ -248,23 +248,6 @@ if (-not (Test-Path $rdsMap)) {
 }
 
 # ----------------------------
-# DBeaver CONFIG GENERATION ✅ (ADDED CLEANLY)
-# ----------------------------
-Write-Host "Configuring DBeaver connections..."
-
-$dbScript = "$PSScriptRoot\scripts\generate-dbeaver-config.ps1"
-
-if (Test-Path $dbScript) {
-    try {
-        & $dbScript
-    } catch {
-        Write-Host "DBeaver config failed: $_"
-    }
-} else {
-    Write-Host "generate-dbeaver-config.ps1 not found"
-}
-
-# ----------------------------
 # POWERSHELL PROFILE
 # ----------------------------
 $profilePath = $PROFILE
@@ -339,4 +322,3 @@ Write-Host ""
 Write-Host "Reload PowerShell:"
 Write-Host "   . `$PROFILE"
 Write-Host ""
-Write-Host "Open DBeaver connections are ready"
