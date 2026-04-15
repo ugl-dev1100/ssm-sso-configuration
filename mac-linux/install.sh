@@ -127,7 +127,7 @@ install_script() {
 }
 
 install_script "scripts/aws-login"
-install_script "scripts/db-pc"
+install_script "scripts/dbpc"
 install_script "scripts/linux"
 install_script "scripts/rds"
 
@@ -178,8 +178,6 @@ alias uat="linux uat"
 alias prod="linux prod"
 alias dbuat="rds uat"
 alias dbprod="rds prod"
-alias wuat="win uat"
-alias wprod="win prod"
 '
 
 append_block "AWS_AUTO_LOGIN" "$SHELL_FILE" '
@@ -217,5 +215,5 @@ log "   uat - for connecting linux uat servers"
 log "   prod - for connecting linux prod servers"
 log "   dbuat - open tunnels for uat dbs"
 log "   dbprod - open tunnels for prod dbs"
-log "   db-pc - Checking ports actively listening or not"
+log "   dbpc - Checking ports actively listening or not"
 log ""
