@@ -250,11 +250,9 @@ $json = aws ec2 describe-instances `
     --profile $PROFILE `
     --region $region `
     --filters Name=instance-state-name,Values=running `
-    --query "Reservations[].Instances[].{
-        Name:Tags[?Key=='Name']|[0].Value,
-        Id:InstanceId,
-        ImageId:ImageId,
-        Platform:Platform
+    --query "Reservations[].Instances[?!contains(PlatformDetails, 'Windows')].{
+        Name: Tags[?Key=='Name'] | [0].Value,
+        Id: InstanceId
     }" `
     --output json
 
