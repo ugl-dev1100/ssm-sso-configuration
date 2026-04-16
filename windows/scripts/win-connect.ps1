@@ -247,14 +247,17 @@ $ssmSet = $ssmInstances -split "\s+"
 Write-Host "Fetching instances..."
 
 $json = aws ec2 describe-instances `
-    --profile $PROFILE `
-    --region $region `
-    --filters Name=instance-state-name,Values=running `
-    --query "Reservations[].Instances[?!contains(PlatformDetails, 'Windows')].{
-        Name: Tags[?Key=='Name'] | [0].Value,
-        Id: InstanceId
-    }" `
-    --output json
+  --profile $PROFILE `
+  --region $REGION `
+  --filters `
+    Name=instance-state-name,Values=running `
+    Name=platform-details,Values=Linux/UNIX `
+  --query "Reservations[].Instances[].{
+    Name: Tags[?Key=='Name'] | [0].Value,
+    Id: InstanceId,
+    ImageId: ImageId
+  }" `
+  --output json | ConvertFrom-Json
 
 $instances = $json | ConvertFrom-Json
 
