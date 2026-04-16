@@ -40,6 +40,7 @@ Write-Host "Fetching instances..."
 $instances = aws ec2 describe-instances `
   --profile $PROFILE `
   --region $REGION `
+  --no-paginate `
   --filters `
     Name=instance-state-name,Values=running `
     Name=platform-details,Values=Linux/UNIX `
