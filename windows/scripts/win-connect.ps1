@@ -37,7 +37,7 @@ $ssmSet = $ssmInstances -split "\s+"
 # ----------------------------
 Write-Host "Fetching instances..."
 
-$json = aws ec2 describe-instances `
+$instances = aws ec2 describe-instances `
   --profile $PROFILE `
   --region $REGION `
   --filters `
@@ -49,8 +49,6 @@ $json = aws ec2 describe-instances `
     ImageId: ImageId
   }" `
   --output json | ConvertFrom-Json
-
-$instances = $json | ConvertFrom-Json
 
 # Filter Linux + SSM connected
 $instances = $instances | Where-Object {
