@@ -209,8 +209,9 @@ $instances = aws ec2 describe-instances `
 # ----------------------------
 # FILTER (FIXED CORE)
 # ----------------------------
+# Only filter Linux
 $instances = $instances | Where-Object {
-    $_.Platform -ne "windows" -and ($ssmSet -contains $_.Id)
+    $_.Platform -ne "windows"
 }
 
 if (-not $instances) {
