@@ -240,13 +240,50 @@ Use profiles like this
 aws s3 ls --profile uat
 aws s3 ls --profile prod
 ```
-## Usage Commands
-uat - for connecting linux uat servers"
-prod - for connecting linux prod servers"
-dbuat - open tunnels for uat dbs"
-dbprod - open tunnels for prod dbs"
-dbpc - Checking ports actively listening or not"
+Here’s a cleaner, well-structured Markdown version you can directly use:
 
+---
+
+## 🚀 Usage Commands
+
+### 🔄 Reload Alias Configuration
+
+Run the appropriate command based on your OS:
+
+#### 🪟 Windows (PowerShell)
+
+```powershell
+. $PROFILE
+```
+
+#### 🍎 macOS (zsh)
+
+```bash
+source ~/.zshrc
+```
+
+#### 🐧 Linux (bash)
+
+```bash
+source ~/.bashrc
+```
+
+---
+
+## ⚡ Available Shortcuts / Aliases
+
+| Command  | Description                           |
+| -------- | ------------------------------------- |
+| `uat`    | Connect to Linux UAT servers          |
+| `prod`   | Connect to Linux Production servers   |
+| `dbuat`  | Open tunnels for UAT databases        |
+| `dbprod` | Open tunnels for Production databases |
+| `dbpc`   | Check if ports are actively listening |
+
+---
+
+## 💡 Notes
+* If a command doesn’t work, try restarting the terminal.
 
 # DBeaver or Sequel Ace DB connections configuration
 [prod_databases]
@@ -266,6 +303,5 @@ Ports are not changed at all if you want you can do if any port already used in 
 Just go to homedir where you can findout .rds-map change the port whatever you want 
 
 host as 127.0.0.1 for all servers you can differentiate ports to connect particular DB 
-
 
 Make sure allowPublicKeyRetrieval true in DBeaver
