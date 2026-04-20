@@ -257,9 +257,6 @@ source ~/.bashrc
 ## 💡 Notes
 * If a command doesn’t work, try restarting the terminal.
 
-
-Here’s a clean, well-structured Markdown page you can use:
-
 ---
 
 # 🗄️ Database Connection Configuration
