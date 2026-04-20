@@ -43,31 +43,7 @@ bash install.sh
 
 ---
 
-## 🔄 3. Reload Shell Configuration
-
-After installation, reload your shell:
-
-### Windows
-
-```powershell
-. $PROFILE
-```
-
-### Mac (zsh)
-
-```bash
-source ~/.zshrc
-```
-
-### Linux (bash)
-
-```bash
-source ~/.bashrc
-```
-
----
-
-## 🔐 4. Configure AWS SSO
+## 🔐 3. Configure AWS SSO
 
 Run:
 
@@ -88,7 +64,7 @@ aws configure sso
 
 ---
 
-## 🌐 5. Browser Authentication
+## 🌐 4. Browser Authentication
 
 * A browser window will open
 * Click **Allow Access**
@@ -98,7 +74,7 @@ aws configure sso
 
 ---
 
-## ✅ 6. Authentication Response
+## ✅ 5. Authentication Response
 
 After login, you will see confirmation:
 
@@ -107,7 +83,7 @@ After login, you will see confirmation:
 
 ---
 
-## 🏢 7. Select AWS Account
+## 🏢 6. Select AWS Account
 
 You will see two accounts:
 
@@ -130,7 +106,7 @@ Audintel@UAT, raghu@audintel.in (670307493739)
 
 ---
 
-## 🔑 8. Select Permission Set
+## 🔑 7. Select Permission Set
 
 You may see options like:
 
@@ -145,7 +121,7 @@ Billing
 
 ---
 
-## ⚙️ 9. Final Configuration Inputs
+## ⚙️ 8. Final Configuration Inputs
 
 * **Default client region**: `us-east-1`
 * **CLI output format**: `json`
@@ -153,7 +129,7 @@ Billing
 
 ---
 
-## 🧪 10. Verify Configuration
+## 🧪 9. Verify Configuration
 
 ```bash
 aws sts get-caller-identity --profile uat
@@ -161,7 +137,7 @@ aws sts get-caller-identity --profile uat
 
 ---
 
-## 🔁 11. Repeat for Production
+## 🔁 10. Repeat for Production
 
 Repeat the same steps with these changes:
 
@@ -176,12 +152,8 @@ Repeat the same steps with these changes:
   * **Profile name**: `prod`
 
 ---
-Nice, this fits perfectly into your docs 👍
-I’ll convert it into a clean **Markdown section** you can drop into `verification.md`.
 
----
-
-## 🧪 12. Verify the Configuration
+## 🧪 11. Verify the Configuration
 
 ### 🔹 Check Production Profile
 
@@ -240,7 +212,7 @@ Use profiles like this
 aws s3 ls --profile uat
 aws s3 ls --profile prod
 ```
-Here’s a cleaner, well-structured Markdown version you can directly use:
+
 
 ---
 
