@@ -153,3 +153,4 @@ time aws ssm start-session \
   --region "$REGION" \
   --document-name AWS-StartInteractiveCommand \
   --parameters "command=[\"sudo -u ${TARGET_USER} -i\"]"
+
